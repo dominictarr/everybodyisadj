@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src=socket.io/socket.io.js></script>
+    <script src=jquery.js></script>
+    <script src=jquery-ui.js></script>
+    <script src=swfobject.js></script>
+    <script src=http://www.youtube.com/player_api?enablejsapi=1&version=3></script>
+    <script src=browserify.js></script>
+    <style>
+      .column    { float: left; }
+      .left      { width: 400px; }
+      .thumbnail { float: left; }
+    </style>
+  </head>
+  <body>
+
+    <!-- play list & search -->
+
+    <div class='column left'>
+      <div>
+        <h3> playlist </h3>
+        <ul id=playlist>
+        </ul>
+      </div>
+      <input id=search>
+      <div>
+        results
+        <ul id=results>
+        </ul>
+      </div>
+    </div>
+
+    <div class=column>
+      <div id=ytplayer></div>
+      <h1> player is here</h1>
+      <div>
+        chat is here
+      </div>
+    </div>
+
+  </body>
+
+</html>
