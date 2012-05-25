@@ -5,36 +5,114 @@
     <script src=jquery.js></script>
     <script src=jquery-ui.js></script>
     <script src=swfobject.js></script>
+    <script src=globals.js></script>
     <script src=http://www.youtube.com/player_api?enablejsapi=1&version=3></script>
     <script src=browserify.js></script>
     <style>
       .column    { float: left; }
       .left      { width: 400px; }
       .thumbnail { float: left; }
+      .section   { 
+        clear: both; 
+        margin: 10px 5px 5px 10px;
+      }
+      .track{ 
+        clear: left; 
+        margin: 3px;
+        border: 1px solid;
+        background: whitesmoke;
+        height: 90px;
+
+        -webkit-border-top-right-radius: 5px;
+        -webkit-border-bottom-right-radius: 5px;
+        -moz-border-radius-topright: 5px;
+        -moz-border-radius-bottomright: 5px;
+        border-top-right-radius: 5px;
+        border-bottom-right-radius: 5px; 
+      }
+
+      .front {
+        margin: 3px;
+        border: 1px solid;
+        background: whitesmoke;
+
+        -webkit-border-bottom-right-radius: 5px;
+        -webkit-border-bottom-right-radius: 5px;
+        -moz-border-radius-bottomright: 5px;
+        -moz-border-radius-bottomright: 5px;
+        border-bottom-right-radius: 5px;
+        border-bottom-right-radius: 5px; 
+      }      
+
+      .track > h4 {
+        padding: 2px;
+        margin: 0px;
+      }
+
+      #search {
+        font-size: 2em;
+        width: 380px;
+        border: 1px white;
+        box-shadow: 5px 5px 5px #888;
+        -webkit-border-radius: 5px;
+        border-radius: 5px; 
+      }
+
+      #player_info {
+        width: 600px;
+        min-height: 375px;
+      }
+      #player {
+        float: left;
+      }
+      #user {
+        float: right;
+      }
+      body {
+        color: #161212;
+        font-family: sans;
+        background: rgb(27, 2, 46);
+      }
     </style>
   </head>
   <body>
 
     <!-- play list & search -->
-
+    <div id=header>
+      <h1 class=front>
+        <a href=#>>></a>
+        <a href=# id=host></a>.<a href=#>is-a.dj</a>/<a href=# id=party></a>
+        <div id=user></div>
+      </h1>
+<!--
+  play/pause icon top left.
+  new, clone... favorite?
+  edit the name...
+-->
+    </div>
     <div class='column left'>
-      <div>
-        <h3> playlist </h3>
-        <ul id=playlist>
-        </ul>
+      <div class=section>
+        <div id=playlist>
+        </div>
       </div>
+      <div class=section>
       <input id=search>
-      <div>
-        results
-        <ul id=results>
-        </ul>
+      </div>
+      <div class=section>
+        <div id=results>
+        </div>
       </div>
     </div>
 
     <div class=column>
-      <div id=ytplayer></div>
-      <h1> player is here</h1>
-      <div>
+      <div class=section>
+        <div id=player_info class=front>
+          <div id=ytplayer></div>
+          <div id=nowplaying> 
+          </div>
+        </div>
+      </div>
+      <div id=chat class=section>
         chat is here
       </div>
     </div>

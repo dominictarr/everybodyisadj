@@ -1,9 +1,13 @@
 //depends on jquery-ui
-
+/*
+  this may be a problem that it does not iterate over
+  the list to display initial contents...
+  TODO FIX THIS
+*/
 module.exports = seqWidget
 
 function seqWidget( el, seq, opts) {
-  el = $(el)
+  el = $(el).empty() //clear any old elements
   var name = el.attr('id')
   var template = opts.template
   
@@ -19,6 +23,12 @@ function seqWidget( el, seq, opts) {
     else el.append(li) 
   }
 
+  seq.on('remove', function (r) {
+    var item = $('#'+r.id)
+    if(~el.children().index(item))
+      item.remove() 
+  })
+
   seq.on('move', update) //when a member of the set updates
 
   function change (_, ui) {
@@ -31,6 +41,7 @@ function seqWidget( el, seq, opts) {
     if(~i && seq.indexOf(itemId) !== i)
       seq.before(itemId, ui.item.next().attr('id'))
   }
+
   opts.receive = change
   opts.update  = change
 
