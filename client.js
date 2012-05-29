@@ -279,7 +279,7 @@ function itemTemplate(item) {
   var desc = desc.length > 100 ? desc.substring(0,100) + '...' : desc
   return j('<div class="play track">').attr('id', item.id)
     .append('<img class=thumbnail src=http://i.ytimg.com/vi/' + item.id + '/default.jpg>')
-    .append('<h4>'+item.title+'</h4>')
+    .append('<strong>'+item.title+'</strong>')
     .append(
       j('<p>')// + desc + '</p>')
       .append(link('play'  , function () { play(item) }))
