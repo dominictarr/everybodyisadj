@@ -258,7 +258,7 @@ function itemTemplateSearch(item) {
       j('<a href=#><img class=thumbnail src=http://i.ytimg.com/vi/' + item.id + '/default.jpg></a>')
         .click(function () { playlist.push(item); el.remove() })
     )
-    .append('<h4>'+item.title+'</h4>')
+    .append('<strong>'+item.title+'</strong>')
   return el
 }
 
