@@ -1,0 +1,23 @@
+{
+  "author": "Dominic Tarr <dominic.tarr@gmail.com> (dominictarr.com)",
+  "name": "everybodyisadj",
+  "description": "Everybody is a DJ",
+  "version": "0.0.0",
+  "homepage": "everybody.is-a.dj",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/dominictarr/everybodyisadj.git"
+  },
+  "main": "server.js",
+  "dependencies": {},
+  "devDependencies": {},
+  "optionalDependencies": {},
+  "engines": {
+    "node": "*"
+  },
+  "scripts": {
+    "start": "./index.js"
+  },
+  "private": true,
+  "domains": ["everybodyisadj.koha.as"]
+}
