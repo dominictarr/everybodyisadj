@@ -73,7 +73,7 @@ var app = connect()
       next() //this will mean an error...
   })
 
-io = io.listen(app.listen(3000))
+io = io.listen(app.listen(process.env.PORT || 3000))
 
 var parseCookie = require('connect').utils.parseCookie;
 
@@ -194,4 +194,3 @@ streamRouter(io)
     really, socket.io would be better to just expose a single stream interface
     and then I could multiplex over that... or just use sockjs.
   */
-  //io.on('search', query, cb) 
