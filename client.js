@@ -1,5 +1,6 @@
 var _bs = require('browser-stream')
-var bs = _bs(io.connect('http://localhost:3000'))
+
+var bs = _bs(io.connect(location.origin))
 
 var crdt = require('crdt')
 var createChat = require('./chat')
