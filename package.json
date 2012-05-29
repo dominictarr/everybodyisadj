@@ -19,5 +19,5 @@
     "start": "./index.js"
   },
   "private": true,
-  "domains": ["everybodyisadj.koha.as"]
+  "domains": ["everybodyisadj.koha.as", "everybody.is-a.dj"]
 }
