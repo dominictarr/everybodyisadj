@@ -2,10 +2,28 @@ var _bs = require('browser-stream')
 var bs = _bs(io.connect('http://localhost:3000'))
 
 var crdt = require('crdt')
-
+var createChat = require('./chat')
 var seqWidget = require('./seq-widget')
 
 /*
+IDEA:
+
+  watch files, on a change, either:
+    * restart server
+    * tell clients to reload
+
+  okay. that is definately very handy.
+  I wonder if using app cache manifests
+  will make it reload really fast?
+  oh, yeah... they are all or nothing.
+  they don't 
+
+  maybe... go back to my merkle tree idea...
+  save nearly everything in localStorage.
+  when data changes, sync to local storage...
+  when local storage is updated, then reload the page
+  reloading from localStorage.
+
   now that I have users,
   can add different playlists, 
   default to everyone edits.
@@ -20,6 +38,7 @@ var seqWidget = require('./seq-widget')
   go to different playlists with out
   reload.
 */
+
 function inplace (initial, cb) {
   var i = $('<input>')
   var done = false
@@ -36,6 +55,14 @@ function inplace (initial, cb) {
   return i
 }
 
+var rpcs = require('rpc-stream')({
+  reload: function () {
+    location.reload()
+  }
+}, true )
+rpcs.pipe(bs.createStream('rpc')).pipe(rpcs)
+var remote = REMOTE = rpcs.wrap('search')
+
 var userDoc = USERS = new crdt.Doc()
 var uStream = crdt.createStream(userDoc)
 /*
@@ -45,33 +72,57 @@ var uStream = crdt.createStream(userDoc)
 
   this will also have other applications, in peer to peer...
 */
-
 uStream.pipe(bs.createStream('whoami', {user_id: GLOBALS.user_id})).pipe(uStream)
+
 var user = USER = userDoc.get(GLOBALS.user_id)
 
 //XXX vvv
-var doc, playlist, party
+var doc, playlist, party, stream, cStream, chat
 
-function load(loc) {
+function load() {
+  var loc = getLocation()
+  //this should be stream.destroy()
+  if(doc) stream.end()
+  if(chat) cStream.end()
+
+  var href = [window.location.origin, loc.host, loc.party].join('/')
+
+  j('#host').text(loc.host).attr('href', href)
+  j('#party').text(loc.party).attr('href', href)
+
   doc = new crdt.Doc()
-  var stream = crdt.createStream(doc)
+  stream = crdt.createStream(doc)
   playlist = PLAYLIST = doc.createSeq('type', 'track')
   party = PARTY = playlist.get('party')
+  loc.party = loc.party || 'playlist1'
+
   stream
     .pipe(bs.createStream('proto', {
-      party: loc.party || 'playlist1'
+      party: loc.party
     , host: loc.host   || 'everbody'
     }))
     .pipe(stream)
+
+  var party = doc.get('party').on('update', function (){
+    console.log('UPDATE', party.toJSON())
+    var h = party.get('host'), p = party.get('party')
+  })
+
+  seqWidget('#playlist', playlist, {
+    template: itemTemplate
+  })
+  current = null //this will play the first track that is added.
   playlist.on('add', function (row) {
     if(current) return
     play(row.toJSON()) 
   })
-  var party = doc.get('party').on('update', function (){
-    console.log('UPDATE', party.toJSON())
-    j('#host').text(party.get('host'))
-    j('#party').text(party.get('party'))
-  })
+
+  chat = new crdt.Doc()
+  cStream = crdt.createStream(chat)
+  cStream.pipe(bs.createStream(['chat',loc.party,loc.host || 'everybody'].join(':'))).pipe(cStream)
+
+  createChat('#chat', chat, user) 
+
   //remember, when you get to disposing a doc from memory
   //to remove all the listeners. to all the rows.
 }
@@ -80,6 +131,7 @@ function load(loc) {
 //assign jquery to j because it's easier to type!
 var j = $
 //on document load.
+
 /*
   okay, basically got what I need.
 
@@ -87,7 +139,7 @@ var j = $
 
   global functions refured to by strings,
   numerical event types.
-
+/
   but I got what I need to play videos...
 
   so, when a new item is added,
@@ -97,36 +149,60 @@ var j = $
     play the next video.
 */
 
-
 var READY = -1, ENDED = 0, PLAYING = 1, PAUSED = 2, BUFFERENG = 3, CUED = 5;
-var player = null
+window.player = null
 var current = null
 
 //TODO refactor this out into it's own package.
 //wrap around the RETARDED api. 
 //and then also support soundcloud and bandcamp.
 
-window.onStateChange = function (state) {
-  if(state === ENDED) {
-    var n =  playlist.next(current)
-    if(!n) {
-      player.clearVideo()
-      current = null
-      return
-    }
-    player.loadVideoById(current = n.get('id'))
-  }
-}
+window.onYouTubePlayerAPIReady = function (playerId) {
+  var _player = new YT.Player('ytplayer', {
+//    height: '475',
+//    width: '600',
+    events: {
+      onStateChange: function (data) {
+        console.log('STATE CHANGE', data.state)
+        if(!player) {
 
-window.onYouTubePlayerReady = function (playerId) {
-  player = document.getElementById("player");
+          /*
+            when the READY event is emitted,
+            it's not actually read.
+            because I can't play a video.
+            so, I'm just gonna poll until it is actually ready 
+          */
+          var i = setInterval(function () {
+            if(!_player.loadVideoById) return
+            player = _player
+            if(current)
+              play(current)
+            clearTimeout(i)
+          }, 50)
+        } else if(data.state === ENDED) {
+          var n =  playlist.next(current)
+          if(!n) {
+            //TODO poll this action until
+            //the state becomes READY
+            player.playVideoById('')
+            current = null
+            return
+          }
+          play(current = n.get('id'))
+        }
+      } 
+    }
+  })
+  console.log(player)
+
+//document.getElementById("player");
   //seriously, WTF, passing cb as string???
-  player.addEventListener('onStateChange', 'onStateChange')
-  if(current)
-    play(current)
+//  player.addEventListener('onStateChange', 'onStateChange')
+  
 }
 
 function play(item) {
+  console.log("PLAY", item)
   j('#nowplaying')
     .empty()
     .append(
@@ -134,24 +210,11 @@ function play(item) {
       .attr('href', 'http://www.youtube.com/watch?feature=player_embedded&v='+item.id))
     .append(j('<p>').text(item.description))
 
-  if(player)
+  if(player && player.loadVideoById)
     player.loadVideoById(item.id)
   current = item
 }
 
-;(function () {
-   var params = { allowScriptAccess: "always" };
-    var atts = { id: "ytplayer" };
-    swfobject.embedSWF("http://www.youtube.com/v/ylLzyHk54Z0&enablejsapi=1&playerapiid=ytplayer&loop=1"
-      , "ytplayer"
-      , "600"
-      , "375"
-      , "8"
-      , null
-      , null
-      , { allowScriptAccess: 'always' }
-      , { id: 'player' }) 
-})()
 
 function searchYT (query, cb) {
   var called  = false
@@ -195,7 +258,6 @@ function itemTemplateSearch(item) {
         .click(function () { playlist.push(item); el.remove() })
     )
     .append('<h4>'+item.title+'</h4>')
-  //  .append('<p>' + desc + '</p>')
   return el
 }
 
@@ -244,26 +306,73 @@ function addSearchResults() {
   add()
 }
 
-function getLocation () {
-  
-  var hash = window.location.hash
-  if(!hash) return {}
-  hash = hash.substring(1).split('/')
+/*
+  I've just avoided the urge to write a module that
+  wraps pushState, and falls back to # but does not
+  include a routing library.
+
+  but then I didn't. so we are just html5.
+  maybe if this later, when/if it matters.
+*/
+
+function getLocation () { 
+  var path = window.location.pathname
+//  var hash = l.hash.substring(1).split('/')
+//  if(hash.length < 2)
+  path = path.substring(1).split('/')
   return {
-    host: hash.shift(), party: hash.shift()
+    host: path.shift(), party: path.shift()
   }
 }  
 
 j(function () {
 
-  load(getLocation())
-  seqWidget('#playlist', playlist, {
+  if(window.location.pathname === '/')
+    //or randomly go to playlist?
+    history.pushState({}, '', '/everybody/playlist1') 
+  load()
+  /*seqWidget('#playlist', playlist, {
     template: itemTemplate
+  })*/
+  function change () {
+    var val = this.value.split(':')
+    var p = val.pop()
+    var h = val.pop() || 'everybody'
+    console.log('CHANGE', h, p)
+    history.pushState({}, '', '/'+h+'/'+p )
+    load()
+  }
+
+  j('#psearch').autocomplete({
+    source: function (query, res) {
+      remote.search(query.term, function (err, data) { 
+        console.log(query.term, '?', data)
+        res(data)
+      })
+    }
+  }).change(change).keyup(function (e) {
+    if(e.keyCode == 13) //Enter
+      change.call(this, e)
+  })
+
+  j('.ui-autocomplete').css({
+    position: 'absolute',
+    background: 'whitesmoke'
   })
 
   function updateUser() {
-    j('#user').text(user.get('name'))
+    var u = j('#user')
+      .html('<em>'+user.get('name')+'</em>')
+      .append(link('edit', function (e) {
+        u.empty().append(
+          inplace(user.get('name'), function (val) {
+            user.set({name: val})
+          })
+        )
+        return false
+      }))
   }
+
   user.on('changes', updateUser)
   if(user.get('name'))
     updateUser()

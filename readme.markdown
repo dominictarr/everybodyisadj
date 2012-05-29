@@ -1,51 +1,21 @@
 
-wresteling with ko all day.
+TODO
 
-I decided that I actually really like the idea.
+  * create new playlist. --needs style
+  * edit playlist name. --NO
+  * edit user name  - DONE
+  * link to the right playlists --DONE
+  * some way to switch playlists --search?
+    - want auto suggest type thing --DONE
+    - but also, show [create new] when a name is not matched.
+    - okay -- that is easy with a source: function (req, res) {
+      can probably hack it so that can add items in real time.
+      BECAUSE THAT IS HOW EVERYTHING SHOULD BE!
+  * need req-res RPC interface for streams, to call the server to search.. -- DONE.
+    or, just use a stream? down the road, I'd want streams. now I'd want rpc.
+  * make the video change when you load a new playlist.
+  * chat.
+  * dashboards.
 
-but the diff stuff that I have doesn't really play nice with it.
-
-it's because I made xdiff more sophisticated than I really needed to.
-
-example, can handle references in keys.
-and all sorts of clever stuff.
-
-idea: make a more limited difftool that:
-  * only support refs in arrays. 
-  * DEMAND that objects in arrays have id's
-  * address all other objects by thier path.
-
-also, need a hydrate, dehydrate function.
-
-so, if your applying a patch to a rich object
-(say knockout's observables) then updates must be handled correctly.
-
-so, applying a patch will update or create objects.
-but those objects will be hydrated.
-
-example
-SET path {key: value, type: 'thing'}
-hydrate (val, path) {
-  if(val.type == 'thing')
-    return new Thing()
-  else if('string' === typeof val)
-    return ko.observable(val)
-}
-for example...-
-
-dehydrate (val, path) {
-  if(ko.isObservable(val))
-    return val()
-  else
-    return ko.isObservableArray(val) ? [] : {}
-}
-
-ko doesn't have proper array updates.
-so, I'll diff it with my diff stuff.
-
-the KEY is to be able to apply a patch directly a ko ViewModel.
-also, what would be awesome, is to make subscribers to the observables
-so that I could log the changes.
-
-hmm, easier to just diff.
+then publish to internets.
 

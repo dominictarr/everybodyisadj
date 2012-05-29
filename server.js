@@ -7,108 +7,34 @@ var users = {}
 
 var fs = require('fs')
 var es = require('event-stream')
+var rpc = require('rpc-stream')
+
+var watch = require('watch')
 
 var store = require('./crdt-session-store')()
 var users = store.doc
 
-/*
-  okay,
-
-  more backends for saving docs.
-
-  replicate user data to 
-
-  check if the file exists,
-  read the file,
-  on end,
-  start updating the file.
-
-  extra-points:
-    start writing two files,
-    every N writes,
-    start writing one of the files again.
-    that will keep the file compact
-    and give good durability.  
-*/
-
 var kv = require('kv')(__dirname + '/data')
+var sync2 = require('./sync')(kv)
 
-/*
-  what about a sync stream method that returned a RW stream
-  that read from the database and then wrote to it...
-*/
-
-function sync(doc, key) {
-  kv.has(key, function (err) {
-    function write () {
-      crdt.createStream(doc)
-        .pipe(kv.put(key))
-    }
-    //don't read if file does not exist
-    if(err) return write()
-
-    kv.get(key)
-      .pipe(crdt.createStream(doc))
-      .on('end', write)
-  })
-}
-/*
-  syncronize a document,
-  but periodically startover to keep the file
-  from growing too large with redundant updates.
-  (can't help if there are too many creates though)
-
-  this means that doc should emit when there is a create
-  and when there is an update.
-
-  since the files are rotated, you cant loose data.
-  (maybe there are some crazy edge case where you can)
-  but you wont loose (old) data from an occasional crash.
-  can loose data that is not written yet.
-
-  TODO doc emits update/create counter.
-  fix this when write perf is important
-*/
-function sync2(doc, key, timer) {
-  var turn, both, cs
-  timer = timer || 10e3
-
-  function read(key, ready) {
-    kv.has(key, function (err) {
-      if(err) return ready(err)
-      var ds = crdt.createStream(doc)
-      kv.get(key).on('end', ready).pipe(ds)
-    })
-  }
-  function write(key) {
-    var source = crdt.createStream(doc)
-    source.pipe(kv.put(key))
-    return source
-  }
-  function start() {
-    if(!both) return both = true
-    //doc emits 'sync', id .
-    //in this case, we have loaded the doc's state from
-    //disk, that is like syncing with your self. 
-    doc.emit('sync', doc.id) 
-    next()
-    setInterval(next, 10e3)
-  }
-
-  function next() {
-    turn = !turn
-    if(cs) cs.end()
-    cs = write(key + '_' + (turn ? 1 : 2))
-  }
-
-  read(key + '_1', start)
-  read(key + '_2', start)
-}
-
-//sync2(doc, 'playlist1')
 sync2(users, 'users')
 
 var docs = {}
+
+var expose = {
+  search: function (query, callback) {
+    //todo filter by query...
+    var f = []
+    kv.list().forEach(function (item) {
+      var m = /^([^:]+\:.+)_1$/.exec(item)
+      if(!m) return
+      m = m[1]
+      if(~m.indexOf(query)) //todo: smarter way to handle query
+        f.push(m)
+    })
+    callback(null, f)
+  }
+}
 
 function loadDoc(key, init) {
   if(docs[key])
@@ -121,12 +47,16 @@ function loadDoc(key, init) {
   //or better, for the db to emit 'sync' event?
   return doc
 }
+var index = fs.readFileSync(__dirname+'/static/index.html')
 
 //var store = new connect.session.MemoryStore()
- 
 var app = connect()
   .use(connect.cookieParser('whatever'))
-  .use(connect.session({secret: 'whatever', store: store, cookie: {maxAge: 86400}})) //how to make the cookie last forever?
+  .use(connect.session({
+    secret: 'whatever', 
+    store: store, 
+    cookie: {maxAge: 86400}
+  })) //how to make the cookie last forever?
   .use(function (req, res, next) {
     if(req.url != '/globals.js') return next()
     res.end(';var GLOBALS = ' + JSON.stringify({
@@ -135,6 +65,13 @@ var app = connect()
   })
   .use(connect.static(__dirname+'/static'))
   .use(browserify(__dirname+'/client.js'))
+  .use(function (req, res, next) {
+    console.log('URL', JSON.stringify(req.url))
+    if(/^\/\w+\/\w+\/?$/.test(req.url))
+      res.end(index)
+    else
+      next() //this will mean an error...
+  })
 
 io = io.listen(app.listen(3000))
 
@@ -190,27 +127,53 @@ function randName() {
   return djnames[~~(djnames.length * Math.random())]
 }
 
-streamRouter(io)
-  .add(/^pl:\w+/, function (stream) {
-    //if the playlist is not in memory
-    //load, or create it.
-    //if there are no users for a given pl,
-    //dispose of it.
+var rpcStreams = []
+
+function group(stream) {
+  rpcStreams.push(stream)
+  stream.on('end', function () {
+    rpcStreams.splice(rpcStreams.indexOf(stream), 1)
   })
+  return stream
+}
+
+group.all = function (method, args) {
+  rpcStreams.forEach(function (s) {
+    s.rpc(method, args)
+  })
+}
+
+fs.watch(__dirname+'/static', {}, function (event, cur) {
+  console.log("WATCH", event, cur)
+  index = fs.readFileSync(__dirname+'/static/index.html')
+  group.all('reload', [])
+})
+
+/*
+  move this into browser-stream?
+
+  decouple this from browser stream, to fit TCP also.
+*/
+/*
+  these are not separate connections.
+  these are fake streams multiplexed over a single socket.io connection.
+*/
+streamRouter(io)
   .add('proto', function (stream) {
     //passin the playlist this is with respect to
-    var host = stream.options.host   || 'everybody'
-    var party = stream.options.party || 'playlist1'
+    var host = stream.options.host
+    var party = stream.options.party
     var doc = loadDoc(host +':'+ party)
-    console.log('PROTO', doc)
     doc.once('sync', function (id) {
-      console.log("DOC SYNC", id)
       if(doc.id !== this.id) return
       var loc = doc.get('party')
       if(!loc.get('party'))
         loc.set({host: host, party: party}) 
     })
     stream.pipe(crdt.createStream(doc)).pipe(stream)
+  })
+  .add(/^chat:/, function (stream) {
+     stream.pipe(crdt.createStream(loadDoc(stream.name))).pipe(stream)   
   })
   .add('whoami', function (stream, handshake) {
     /*
@@ -222,3 +185,13 @@ streamRouter(io)
       handshake.user.set({name:  'DJ ' + randName()})
     stream.pipe(crdt.createStream(users)).pipe(stream) 
   })
+  .add('rpc', function (stream) {
+    stream.pipe(group(rpc(expose, true))).pipe(stream)
+  })
+  /*
+    socket.io already supports RPG like I want, but i want to do it across streams,
+    so I'm not coupled to socket.io
+    really, socket.io would be better to just expose a single stream interface
+    and then I could multiplex over that... or just use sockjs.
+  */
+  //io.on('search', query, cb) 
