@@ -1,10 +1,26 @@
 var _bs = require('browser-stream')
 
-var bs = _bs(io.connect(location.origin))
+var bs = _bs(io = io.connect(location.origin))
 
 var crdt = require('crdt')
 var createChat = require('./chat')
 var seqWidget = require('./seq-widget')
+
+io.on('disconnect', function (data) {
+  console.log('DISCONNECT', data)
+}).on('connecting', function (data) {
+  console.log('CONNECTING', data)
+}).on('connect_failed', function (data) {
+  console.log('CONNECT_FAILED', data)
+}).on('error', function (data) {
+  console.log('ERROR', data)
+}).on('reconnecting', function (data) {
+  console.log('RECONNECTING', data)
+}).on('reconnect_failed', function (data) {
+  console.log('RECONNECT_FAILED', data)
+}).on('reconnect', function (data) {
+  console.log('RECONNECT', data)
+})
 
 /*
 IDEA:
