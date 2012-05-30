@@ -13,6 +13,7 @@ function connector (url, emitter) {
   //the server...
   var min = 1e3, max = 60e3
   var sock = io.connect(location.origin)
+  sock.socket.options.reconnect = false
 
   var timer
   emitter = emitter || new EventEmitter()
