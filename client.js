@@ -30,6 +30,7 @@ function connector (url, emitter) {
   }
   sock.$emit = function () {
     var args = [].slice.call(arguments)
+    console.log('$emit', arguments)
     EventEmitter.prototype.emit.apply(sock, args)
     EventEmitter.prototype.emit.apply(emitter, args) 
     return sock
