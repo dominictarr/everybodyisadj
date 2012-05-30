@@ -164,7 +164,8 @@ window.onYouTubePlayerAPIReady = function (playerId) {
 //    width: '600',
     events: {
       onStateChange: function (data) {
-        console.log('STATE CHANGE', data.state)
+        console.log('STATE CHANGE', data.data, data)
+        var state = data.data
         if(!player) {
 
           /*
@@ -180,16 +181,17 @@ window.onYouTubePlayerAPIReady = function (playerId) {
               play(current)
             clearTimeout(i)
           }, 50)
-        } else if(data.state === ENDED) {
+        } else if(state === ENDED) {
           var n =  playlist.next(current)
+          console.log(n)
           if(!n) {
             //TODO poll this action until
             //the state becomes READY
-            player.playVideoById('')
+            play(null)
             current = null
             return
           }
-          play(current = n.get('id'))
+          play(n)
         }
       } 
     }
@@ -203,6 +205,10 @@ window.onYouTubePlayerAPIReady = function (playerId) {
 }
 
 function play(item) {
+  if(!item)
+    item = {title: '', description: '', id: ''}
+  if(item instanceof crdt.Row)
+    item = item.toJSON()
   console.log("PLAY", item)
   j('#nowplaying')
     .empty()
@@ -211,8 +217,9 @@ function play(item) {
       .attr('href', 'http://www.youtube.com/watch?feature=player_embedded&v='+item.id))
     .append(j('<p>').text(item.description))
 
-  if(player && player.loadVideoById)
+   if(player && player.loadVideoById)
     player.loadVideoById(item.id)
+  
   current = item
 }
 
