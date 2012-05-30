@@ -12,27 +12,37 @@ var EventEmitter = require('events').EventEmitter
   pull it out into another module...
   and TODO wrap sockjs...
 */
-function connector (url, emitter) {
+function connector (opts, emitter) {
   //this module is not needed on the server side
   //just make a simple thing to do an event emitter across
   //the server...
+  opts = opts || {}
+  opts['force new connection'] = true
+  opts.reconnect = true
+
   var min = 1e3, max = 60e3
-  var sock = io.connect(location.origin, {'force new connection': true, reconnect: false})
+  var sock = io.connect(location.origin, opts)
   sock.socket.options.reconnect = false
 
   var timer
-  emitter = emitter || new EventEmitter()
-  emitter.emit = function (event) {
-    if(event === 'addListener') return
-    var args = [].slice.call(arguments)
-    sock.emit.apply(sock, args)
-  }
+  emitter = emitter || (function () {
+    var emitter = new EventEmitter()
+    emitter._buffer = [] 
+    emitter.emit = function (event) {
+      if(event === 'addListener') return
+      var args = [].slice.call(arguments)
+      if(emitter.connected)
+        sock.emit.apply(sock, args)
+      else
+        emitter._buffer.push(args)
+    }
+  })()
   emitter.on('error', function (e) {console.error(e)})
 
   emitter.socket = emitter
   emitter.reconnect = function () {
     clearTimeout(timer) //incase this has been triggered manually 
-    connector(url, emitter)
+    connector(opts, emitter)
   }
   emitter.disconnect = function () {
     sock.disconnect()
@@ -45,6 +55,7 @@ function connector (url, emitter) {
     return sock
   }
   function reconnect () {
+    emitter.connected = false
     emitter.emit('reconnecting', timeout)
     sock.removeAllListeners()// we're gonna create a new connection 
     timer = setTimeout(function () {
@@ -58,7 +69,11 @@ function connector (url, emitter) {
   sock.on('error', reconnect)
   console.log('EVENTS', sock)
   sock.on('connect', function () {
-    console.log('CONNECT!!!')
+    //empty the buffer
+    console.log('connect!')
+    emitter.connected = true
+    while(emitter._buffer.length)
+      sock.emit.apply(sock, emitter._buffer.shift())
     timeout = min 
   })
   sock.on('connecting', function (data) {
