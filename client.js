@@ -36,6 +36,7 @@ function connector (opts, emitter) {
       else
         emitter._buffer.push(args)
     }
+    return emitter
   })()
   emitter.on('error', function (e) {console.error(e)})
 
