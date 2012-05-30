@@ -34,6 +34,7 @@ function connector (url, emitter) {
     EventEmitter.prototype.emit.apply(emitter, args) 
   }
   function reconnect () {
+    console.log('RECONNECTING ???')
     emitter.emit('reconnecting', timeout)
     sock.removeAllListeners()// we're gonna create a new connection 
     sock.removeAllListeners()
@@ -46,7 +47,6 @@ function connector (url, emitter) {
   sock.on('connect_failed', reconnect)
   sock.on('disconnect', reconnect)
   sock.on('connect', function () {
-    emitter.emit('connect')
     timeout = min 
   })
   return emitter
