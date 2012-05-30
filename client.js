@@ -32,6 +32,7 @@ function connector (url, emitter) {
     var args = [].slice.call(arguments)
     EventEmitter.prototype.emit.apply(sock, args)
     EventEmitter.prototype.emit.apply(emitter, args) 
+    return sock
   }
   function reconnect () {
     console.log('RECONNECTING ???')
