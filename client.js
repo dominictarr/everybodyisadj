@@ -60,7 +60,7 @@ function connector (opts, emitter) {
     emitter.emit('reconnecting', timeout)
     sock.removeAllListeners()// we're gonna create a new connection 
     timer = setTimeout(function () {
-      connector(url, emitter)
+      connector(opts, emitter)
     }, timeout)
     timeout = timeout * 2
     if(timeout > max) timeout = max
