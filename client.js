@@ -10,6 +10,8 @@ io.on('disconnect', function (data) {
   console.log('DISCONNECT', data)
 }).on('connecting', function (data) {
   console.log('CONNECTING', data)
+}).on('connect', function (data) {
+  console.log('CONNECT!!!', data)
 }).on('connect_failed', function (data) {
   console.log('CONNECT_FAILED', data)
 }).on('error', function (data) {
