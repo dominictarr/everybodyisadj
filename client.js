@@ -7,20 +7,29 @@ var createChat = require('./chat')
 var seqWidget = require('./seq-widget')
 var EventEmitter = require('events').EventEmitter
 
+/*
+  OKAY! got this working
+  pull it out into another module...
+  and TODO wrap sockjs...
+*/
 function connector (url, emitter) {
   //this module is not needed on the server side
   //just make a simple thing to do an event emitter across
   //the server...
   var min = 1e3, max = 60e3
-  var sock = io.connect(location.origin)
+  var sock = io.connect(location.origin, {'force new connection': true, reconnect: false})
   sock.socket.options.reconnect = false
 
   var timer
   emitter = emitter || new EventEmitter()
-  emitter.emit = function (event, data) {
+  emitter.emit = function (event) {
+    if(event === 'addListener') return
     var args = [].slice.call(arguments)
-    sock.emit.apply(sock,args)
+    sock.emit.apply(sock, args)
   }
+  emitter.on('error', function (e) {console.error(e)})
+
+  emitter.socket = emitter
   emitter.reconnect = function () {
     clearTimeout(timer) //incase this has been triggered manually 
     connector(url, emitter)
@@ -30,16 +39,14 @@ function connector (url, emitter) {
   }
   sock.$emit = function () {
     var args = [].slice.call(arguments)
-    console.log('$emit', arguments)
-    EventEmitter.prototype.emit.apply(sock, args)
+   // console.log('$emit', args)
+    io.EventEmitter.prototype.emit.apply(sock, args)
     EventEmitter.prototype.emit.apply(emitter, args) 
     return sock
   }
   function reconnect () {
-    console.log('RECONNECTING ???')
     emitter.emit('reconnecting', timeout)
     sock.removeAllListeners()// we're gonna create a new connection 
-    sock.removeAllListeners()
     timer = setTimeout(function () {
       connector(url, emitter)
     }, timeout)
@@ -48,15 +55,21 @@ function connector (url, emitter) {
   }
   sock.on('connect_failed', reconnect)
   sock.on('disconnect', reconnect)
+  sock.on('error', reconnect)
+  console.log('EVENTS', sock)
   sock.on('connect', function () {
+    console.log('CONNECT!!!')
     timeout = min 
+  })
+  sock.on('connecting', function (data) {
+    console.log('CONNECTING...', data)
   })
   return emitter
 }
 
 var bs = _bs(CONNECTOR = connector())
 
-CONNECTOR.on('disconnect', function (data) {
+/*CONNECTOR.on('disconnect', function (data) {
   console.log('DISCONNECT', data)
 }).on('connecting', function (data) {
   console.log('CONNECTING', data)
@@ -72,7 +85,7 @@ CONNECTOR.on('disconnect', function (data) {
   console.log('RECONNECT_FAILED', data)
 }).on('reconnect', function (data) {
   console.log('RECONNECT', data)
-})
+})*/
 
 /*
 IDEA:
