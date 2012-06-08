@@ -1,7 +1,6 @@
 var connect = require('connect')
-var io = require('socket.io')
 var _bs = require('browser-stream')
-var browserify = require('browserify')
+var skates = require('skates')
 var crdt = require('crdt')
 var users = {}
 
@@ -48,69 +47,26 @@ function loadDoc(key, init) {
   return doc
 }
 var index = fs.readFileSync(__dirname+'/static/index.html')
-
-//var store = new connect.session.MemoryStore()
-var app = connect()
-  .use(connect.cookieParser('whatever'))
-  .use(connect.session({
-    secret: 'whatever', 
-    store: store, 
-    cookie: {maxAge: 86400}
-  })) //how to make the cookie last forever?
-  .use(function (req, res, next) {
-    if(req.url != '/globals.js') return next()
-    res.end(';var GLOBALS = ' + JSON.stringify({
-      user_id: req.sessionID
-    }) + ';\n')
-  })
-  .use(connect.static(__dirname+'/static'))
-  .use(browserify(__dirname+'/client.js'))
-  .use(function (req, res, next) {
-    console.log('URL', JSON.stringify(req.url))
-    if(/^\/\w+\/\w+\/?$/.test(req.url))
-      res.end(index)
-    else
-      next() //this will mean an error...
-  })
-
-io = io.listen(app.listen(process.env.PORT || 3000))
-
 var parseCookie = require('connect').utils.parseCookie;
 
-/*
-session stuff, unfortunately socket.io doesn't do much handholding here.
-probably gotta wrap all this up in one thing that makes streams over socket.io easy.
-with cookies for sessions.
-*/
+function streamRouter(io) { //passin io.sockets or a skates instance... refactor this.
 
-io.configure(function (){
-  io.set('authorization', function (handshake, cb) {
-    if(handshake.headers.cookie) {
-      handshake.cookie = parseCookie(handshake.headers.cookie)
-      // note that you will need to use the same key to grad the
-      // session id, as you specified in the Express setup.
-      var sid = handshake.cookie['connect.sid']
-      handshake.sessionID = sid.split('.').shift() //WHY DOES SOCKET>IO append something after the .?
-      var user = users.get(handshake.sessionID)
-      handshake.user = user
-      cb(null, true)
-    }
-    handshake.thing = Math.random()
-  })
-})
-
-function streamRouter(io) {
-  var routes = []
-  io.sockets.on('connection', function (sock) {
+  var routes = [], user 
+  io.on('connection', function (sock) {
+    sock.once('auth', function (k) {
+      sock.handshake = k
+      console.log('HANDSHAKE', k)
+      user = users.get(k)
+    }) 
     var bs = _bs(sock)
     bs.on('connection', function (stream) {
       for (var i in routes) {
         var r = routes[i]
         var type = typeof r.matcher
-        if( type == 'function' ? r.matcher(stream, sock.handshake)
+        if( type == 'function' ? r.matcher(stream, user)
           : type == 'string'   ? r.matcher == stream.name
           :                      r.matcher.test(stream.name) )
-          return r.action(stream, sock.handshake)}
+          return r.action(stream, user)}
     })
   })
   function add(matcher, createStream) {
@@ -131,7 +87,7 @@ var rpcStreams = []
 
 function group(stream) {
   rpcStreams.push(stream)
-  stream.on('end', function () {
+  stream.on('close', function () {
     rpcStreams.splice(rpcStreams.indexOf(stream), 1)
   })
   return stream
@@ -149,6 +105,57 @@ fs.watch(__dirname+'/static', {}, function (event, cur) {
   group.all('reload', [])
 })
 
+var app = skates()
+  .use(connect.cookieParser('whatever'))
+  .use(connect.session({
+    secret: 'whatever', 
+    store: store, 
+    cookie: {maxAge: 86400, httpOnly: false}
+  })) //how to make the cookie last forever?
+  .use(function (req, res, next) {
+    if(req.url != '/globals.js') return next()
+    res.end(';var GLOBALS = ' + JSON.stringify({
+      user_id: req.sessionID
+    }) + ';\n')
+  })
+  .use(connect.static(__dirname+'/static'))
+  .use(function (req, res, next) {
+    console.log('URL', JSON.stringify(req.url))
+    if(/^\/\w+\/\w+\/?$/.test(req.url))
+      res.end(index)
+    else
+      next() //this will mean an error...
+  })
+  .listen(3000, function () {
+    console.log('listening on 3000')
+  })
+/*
+session stuff, unfortunately socket.io doesn't do much handholding here.
+probably gotta wrap all this up in one thing that makes streams over socket.io easy.
+with cookies for sessions.
+*/
+/*
+io.configure(function (){
+  io.set('authorization', function (handshake, cb) {
+    if(handshake.headers.cookie) {
+      handshake.cookie = parseCookie(handshake.headers.cookie)
+      // note that you will need to use the same key to grad the
+      // session id, as you specified in the Express setup.
+      var sid = handshake.cookie['connect.sid']
+      if(sid) {
+        handshake.sessionID = sid.split('.').shift() //WHY DOES SOCKET>IO append something after the .?
+        var user = users.get(handshake.sessionID)
+        handshake.user = user
+        cb(null, true)
+      }
+      //why would it be calling with no cookie?
+      else cb(null, true)
+    }
+    handshake.thing = Math.random()
+  })
+})
+*/
+
 /*
   move this into browser-stream?
 
@@ -158,7 +165,29 @@ fs.watch(__dirname+'/static', {}, function (event, cur) {
   these are not separate connections.
   these are fake streams multiplexed over a single socket.io connection.
 */
-streamRouter(io)
+function logErr(s) {
+  var c = 0
+  s.on('error', function(err) {
+    console.error('stream error', err, ++c)
+  })
+  
+  return s
+}
+function sync(doc, stream) {
+  var ds = crdt.createStream(doc)
+  ds
+    //.pipe(es.log('SEND' + stream._id)).
+    .pipe(stream)
+    //.pipe(es.log('RECV' + stream._id))
+    .pipe(ds)
+
+  stream.on('error', function () {
+    console.log('DESTROY', stream._id)
+    ds.destroy()
+  })  
+}
+
+streamRouter(app)
   .add('proto', function (stream) {
     //passin the playlist this is with respect to
     var host = stream.options.host
@@ -170,23 +199,21 @@ streamRouter(io)
       if(!loc.get('party'))
         loc.set({host: host, party: party}) 
     })
-    stream.pipe(crdt.createStream(doc)).pipe(stream)
+    sync(doc, stream)
   })
   .add(/^chat:/, function (stream) {
-     stream.pipe(crdt.createStream(loadDoc(stream.name))).pipe(stream)   
+    sync(loadDoc(stream.name), stream)
   })
-  .add('whoami', function (stream, handshake) {
+  .add('whoami', function (stream) {
     /*
       oh, damn. the client needs to know which user it is.
       so it's gotta get that in some particular way...
       hmm, I think what I'll do is a script tag...
     */
-    if(!handshake.user.get('name'))
-      handshake.user.set({name:  'DJ ' + randName()})
-    stream.pipe(crdt.createStream(users)).pipe(stream) 
+    sync(users, stream)
   })
   .add('rpc', function (stream) {
-    stream.pipe(group(rpc(expose, true))).pipe(stream)
+    logErr(stream).pipe(group(rpc(expose, true))).pipe(stream)
   })
   /*
     socket.io already supports RPG like I want, but i want to do it across streams,

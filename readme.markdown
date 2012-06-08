@@ -13,9 +13,15 @@ TODO
       BECAUSE THAT IS HOW EVERYTHING SHOULD BE!
   * need req-res RPC interface for streams, to call the server to search.. -- DONE.
     or, just use a stream? down the road, I'd want streams. now I'd want rpc.
-  * make the video change when you load a new playlist.
-  * chat.
-  * dashboards.
+  * make the video change when you load a new playlist. --done
+  * make the video change if the currently playing video is deleted.
+  * chat. --done
+  * dashboards. 
 
 then publish to internets.
 
+
+issues from simon:
+
+  - stream becomes unstuck? loosing a connection should be able to reconnect. look into disconnect methods.
+    --this is fixed, but had gone to sockjs and that breaks users. this could be easy to fix, actually.

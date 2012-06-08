@@ -1,108 +1,19 @@
-var _bs = require('browser-stream')
+skates = require('skates')()
 
-
+var bs = require('browser-stream')(skates)
 
 var crdt = require('crdt')
 var createChat = require('./chat')
 var seqWidget = require('./seq-widget')
 var EventEmitter = require('events').EventEmitter
+var es = require('event-stream')
 
-/*
-  OKAY! got this working
-  pull it out into another module...
-  and TODO wrap sockjs...
-*/
-function connector (opts, emitter) {
-  //this module is not needed on the server side
-  //just make a simple thing to do an event emitter across
-  //the server...
-  opts = opts || {}
-  opts['force new connection'] = true
-  opts.reconnect = true
+var userId = decodeURI(/=([^.]+)/.exec(document.cookie)[1])
 
-  var min = 1e3, max = 60e3
-  var sock = io.connect(location.origin, opts)
-  sock.socket.options.reconnect = false
-
-  var timer
-  emitter = emitter || (function () {
-    var emitter = new EventEmitter()
-    emitter._buffer = [] 
-    emitter.emit = function (event) {
-      if(event === 'addListener') return
-      var args = [].slice.call(arguments)
-      if(emitter.connected)
-        sock.emit.apply(sock, args)
-      else
-        emitter._buffer.push(args)
-    }
-    return emitter
-  })()
-  emitter.on('error', function (e) {console.error(e)})
-
-  emitter.socket = emitter
-  emitter.reconnect = function () {
-    clearTimeout(timer) //incase this has been triggered manually 
-    connector(opts, emitter)
-  }
-  emitter.disconnect = function () {
-    sock.disconnect()
-  }
-  sock.$emit = function () {
-    var args = [].slice.call(arguments)
-   // console.log('$emit', args)
-    io.EventEmitter.prototype.emit.apply(sock, args)
-    EventEmitter.prototype.emit.apply(emitter, args) 
-    return sock
-  }
-  function reconnect () {
-    emitter.connected = false
-    emitter.emit('reconnecting', timeout)
-    sock.removeAllListeners()// we're gonna create a new connection 
-    timer = setTimeout(function () {
-      connector(opts, emitter)
-    }, timeout)
-    timeout = timeout * 2
-    if(timeout > max) timeout = max
-  }
-  sock.on('connect_failed', reconnect)
-  sock.on('disconnect', reconnect)
-  sock.on('error', reconnect)
-  console.log('EVENTS', sock)
-  sock.on('connect', function () {
-    //empty the buffer
-    console.log('connect!')
-    emitter.connected = true
-    while(emitter._buffer.length)
-      sock.emit.apply(sock, emitter._buffer.shift())
-    timeout = min 
-  })
-  sock.on('connecting', function (data) {
-    console.log('CONNECTING...', data)
-  })
-  return emitter
-}
-
-var bs = _bs(CONNECTOR = connector())
-
-/*CONNECTOR.on('disconnect', function (data) {
-  console.log('DISCONNECT', data)
-}).on('connecting', function (data) {
-  console.log('CONNECTING', data)
-}).on('connect', function (data) {
-  console.log('CONNECT!!!', data)
-}).on('connect_failed', function (data) {
-  console.log('CONNECT_FAILED', data)
-}).on('error', function (data) {
-  console.log('ERROR', data)
-}).on('reconnecting', function (data) {
-  console.log('RECONNECTING', data)
-}).on('reconnect_failed', function (data) {
-  console.log('RECONNECT_FAILED', data)
-}).on('reconnect', function (data) {
-  console.log('RECONNECT', data)
-})*/
-
+skates.emit('auth', userId)
+skates.on('disconnect', function () {
+  skates.emit('auth', userId)
+})
 /*
 IDEA:
 
@@ -137,6 +48,14 @@ IDEA:
   reload.
 */
 
+function logErr(s) {
+  var c = 0
+  s.on('error', function(err) {
+    console.error('stream error', err, ++c)
+  }) 
+  return s
+}
+
 function inplace (initial, cb) {
   var i = $('<input>')
   var done = false
@@ -153,13 +72,19 @@ function inplace (initial, cb) {
   return i
 }
 
+//I'm gonna need to rejig rpc-stream to do reconnects effectively.
+//it needs to wrap, and then createStreams off of that.
 var rpcs = require('rpc-stream')({
-  reload: function () {
-    location.reload()
+  reload: function (data) {
+    //pass the server start time in, if the server has restarted,
+    //reload too.
+  //  location.reload()
   }
-}, true )
+}, true)
 var remote = REMOTE = rpcs.wrap('search')
 var userDoc = USERS = new crdt.Doc()
+var user = USER = userDoc.get(userId)
+
 /*
   need a way to only sync part of a document.
   do not want each user to know every user
@@ -168,11 +93,39 @@ var userDoc = USERS = new crdt.Doc()
   this will also have other applications, in peer to peer...
 */
 //***************************
-var uStream = crdt.createStream(userDoc)
-uStream.pipe(bs.createStream('whoami', {user_id: GLOBALS.user_id})).pipe(uStream)
-rpcs.pipe(bs.createStream('rpc')).pipe(rpcs)
+
+function log(data) {
+  console.log(data)
+  return data
+}
+
+function sync(doc, args) {
+  return (function _sync() {
+    console.log('SYNC DOC!!!')
+    var closed = 0
+    var stream = log(crdt.createStream(doc))
+      , bStream
+    stream
+    .pipe(
+      bStream = bs.createStream.apply(bs, args).on('error', function () {
+        console.log('STREAM DESTROYED', stream)
+        stream.destroy()
+      })
+        .on('close', function () {
+          if(!closed++)
+            process.nextTick(_sync)
+          console.log('closed', closed, bStream._id)
+        })
+    ).pipe(stream)
+    return stream
+  })()
+}
+
+sync(userDoc, ['whoami', {user_id: GLOBALS.user_id}])
+
+rpcs.pipe(logErr(bs.createStream('rpc'))).pipe(rpcs)
+
 //***************************
-var user = USER = userDoc.get(GLOBALS.user_id)
 
 //XXX vvv
 var doc, playlist, party, stream, cStream, chat
@@ -180,8 +133,8 @@ var doc, playlist, party, stream, cStream, chat
 function load() {
   var loc = getLocation()
   //this should be stream.destroy()
-  if(doc) stream.end()
-  if(chat) cStream.end()
+  if(doc) stream.destroy()
+  if(chat) cStream.destroy()
 
   var href = [window.location.origin, loc.host, loc.party].join('/')
 
@@ -189,19 +142,13 @@ function load() {
   j('#party').text(loc.party).attr('href', href)
 
   doc = new crdt.Doc()
-  stream = crdt.createStream(doc)
+  var stream = sync(doc, ['proto', {
+      party: loc.party
+    , host: loc.host   || 'everbody' 
+  }])
   playlist = PLAYLIST = doc.createSeq('type', 'track')
   party = PARTY = playlist.get('party')
   loc.party = loc.party || 'playlist1'
-
-//**********************************
-  stream
-    .pipe(bs.createStream('proto', {
-      party: loc.party
-    , host: loc.host   || 'everbody'
-    }))
-    .pipe(stream)
-//**********************************
 
   var party = doc.get('party').on('update', function (){
     console.log('UPDATE', party.toJSON())
@@ -218,8 +165,7 @@ function load() {
   })
 
   chat = new crdt.Doc()
-  cStream = crdt.createStream(chat)
-  cStream.pipe(bs.createStream(['chat',loc.party,loc.host || 'everybody'].join(':'))).pipe(cStream)
+  cStream = sync(chat, [['chat',loc.party,loc.host || 'everybody'].join(':')])
 
   createChat('#chat', chat, user) 
 
@@ -445,7 +391,6 @@ j(function () {
     var val = this.value.split(':')
     var p = val.pop()
     var h = val.pop() || 'everybody'
-    console.log('CHANGE', h, p)
     history.pushState({}, '', '/'+h+'/'+p )
     load()
   }
@@ -453,7 +398,6 @@ j(function () {
   j('#psearch').autocomplete({
     source: function (query, res) {
       remote.search(query.term, function (err, data) { 
-        console.log(query.term, '?', data)
         res(data)
       })
     }
@@ -500,7 +444,6 @@ j(function () {
     queued = true
     setTimeout(function () {
       queued = false
-      console.log('SEARCH',self.value.trim()) 
       searchYT(query = self.value.trim(), function (err, data) {
         returned = true
         if(err)

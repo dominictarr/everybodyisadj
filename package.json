@@ -9,7 +9,10 @@
     "url": "git://github.com/dominictarr/everybodyisadj.git"
   },
   "main": "server.js",
-  "dependencies": {},
+  "dependencies": {
+    "browser-stream": "~0.1.4",
+    "event-stream": "~2.0.0"
+  },
   "devDependencies": {},
   "optionalDependencies": {},
   "engines": {
@@ -19,5 +22,8 @@
     "start": "./index.js"
   },
   "private": true,
-  "domains": ["everybodyisadj.koha.as", "everybody.is-a.dj"]
+  "domains": [
+    "everybodyisadj.koha.as",
+    "everybody.is-a.dj"
+  ]
 }
