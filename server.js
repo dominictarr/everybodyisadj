@@ -126,8 +126,8 @@ var app = skates()
     else
       next() //this will mean an error...
   })
-  .listen(3000, function () {
-    console.log('listening on 3000')
+  .listen(process.env.PORT || 3000, function () {
+    console.log('listening on ' + process.env.PORT || 3000)
   })
 /*
 session stuff, unfortunately socket.io doesn't do much handholding here.
