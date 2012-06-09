@@ -249,7 +249,7 @@ window.onYouTubePlayerAPIReady = function () {
   
 }
 
-if(YT) ytReady()
+if(YT && YT.Player) ytReady()
 
 function play(item) {
   if(!item)
