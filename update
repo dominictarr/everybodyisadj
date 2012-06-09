@@ -1,0 +1,4 @@
+#! /usr/bin/env bash
+
+curl -sS localhost:9090/update/${PWD}
+npm rebuild
