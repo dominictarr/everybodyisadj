@@ -202,8 +202,8 @@ var current = null
 //TODO refactor this out into it's own package.
 //wrap around the RETARDED api. 
 //and then also support soundcloud and bandcamp.
-
-window.onYouTubePlayerAPIReady = function (playerId) {
+var ytReady = 
+window.onYouTubePlayerAPIReady = function () {
   var _player = new YT.Player('ytplayer', {
 //    height: '475',
 //    width: '600',
@@ -248,6 +248,8 @@ window.onYouTubePlayerAPIReady = function (playerId) {
 //  player.addEventListener('onStateChange', 'onStateChange')
   
 }
+
+if(YT) ytReady()
 
 function play(item) {
   if(!item)
