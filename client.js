@@ -8,7 +8,8 @@ var seqWidget = require('./seq-widget')
 var EventEmitter = require('events').EventEmitter
 var es = require('event-stream')
 
-var userId = decodeURI(/=([^.]+)/.exec(document.cookie)[1])
+var userId = GLOBALS.user_id
+//decodeURI(/=([^.]+)/.exec(document.cookie)[1])
 
 skates.emit('auth', userId)
 skates.on('disconnect', function () {
