@@ -1,6 +1,6 @@
 {
   "author": "Dominic Tarr <dominic.tarr@gmail.com> (dominictarr.com)",
-  "name": "everybodyisadj-staging",
+  "name": "everybodyisadj",
   "description": "Everybody is a DJ",
   "version": "0.0.0",
   "homepage": "everybody.is-a.dj",
@@ -23,7 +23,7 @@
   },
   "private": true,
   "domains": [
-    "stagingisadj.koha.as",
+    "everybodyisadj.koha.as",
     "everybody.is-a.dj"
   ]
 }
