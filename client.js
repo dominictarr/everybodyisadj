@@ -1,12 +1,12 @@
 skates = require('skates')()
 
 var bs = require('browser-stream')(skates)
-
 var crdt = require('crdt')
-var createChat = require('./chat')
+
+var YouTubePlayer = require('youtube-player')
+
 var seqWidget = require('./seq-widget')
-var EventEmitter = require('events').EventEmitter
-var es = require('event-stream')
+var createChat = require('./chat')
 
 var userId = GLOBALS.user_id
 //decodeURI(/=([^.]+)/.exec(document.cookie)[1])
@@ -49,6 +49,28 @@ IDEA:
   reload.
 */
 
+window.player = new YouTubePlayer({id: 'ytplayer'})
+
+var current = null
+
+function play(item) {
+  if(!item)
+    item = {title: '', description: '', id: ''}
+  if(item instanceof crdt.Row)
+    item = item.toJSON()
+  console.log("PLAY", item)
+  j('#nowplaying')
+    .empty()
+    .append(
+      j('<a>').append(j('<h3>').text(item.title))
+      .attr('href', 'http://www.youtube.com/watch?feature=player_embedded&v='+item.id))
+    .append(j('<p>').text(item.description))
+
+  player.play(item.id)
+  current = item
+}
+
+
 function logErr(s) {
   var c = 0
   s.on('error', function(err) {
@@ -82,6 +104,7 @@ var rpcs = require('rpc-stream')({
   //  location.reload()
   }
 }, true)
+
 var remote = REMOTE = rpcs.wrap('search')
 var userDoc = USERS = new crdt.Doc()
 var user = USER = userDoc.get(userId)
@@ -178,96 +201,6 @@ function load() {
 //assign jquery to j because it's easier to type!
 var j = $
 //on document load.
-
-/*
-  okay, basically got what I need.
-
-  yt js api is RETARDED.
-
-  global functions refured to by strings,
-  numerical event types.
-/
-  but I got what I need to play videos...
-
-  so, when a new item is added,
-    if a video is not playing.
-      play it
-  when a video ends,
-    play the next video.
-*/
-
-var READY = -1, ENDED = 0, PLAYING = 1, PAUSED = 2, BUFFERENG = 3, CUED = 5;
-window.player = null
-var current = null
-
-//TODO refactor this out into it's own package.
-//wrap around the RETARDED api. 
-//and then also support soundcloud and bandcamp.
-window.onYouTubePlayerAPIReady = function () {
-  var _player = new YT.Player('ytplayer', {
-//    height: '475',
-//    width: '600',
-    events: {
-      onStateChange: function (data) {
-        console.log('STATE CHANGE', data.data, data)
-        var state = data.data
-        if(!player) {
-
-          /*
-            when the READY event is emitted,
-            it's not actually read.
-            because I can't play a video.
-            so, I'm just gonna poll until it is actually ready 
-          */
-          var i = setInterval(function () {
-            if(!_player.loadVideoById) return
-            player = _player
-            if(current)
-              play(current)
-            clearTimeout(i)
-          }, 50)
-        } else if(state === ENDED) {
-          var n =  playlist.next(current)
-          console.log(n)
-          if(!n) {
-            //TODO poll this action until
-            //the state becomes READY
-            play(null)
-            current = null
-            return
-          }
-          play(n)
-        }
-      } 
-    }
-  })
-  console.log(player)
-
-//document.getElementById("player");
-  //seriously, WTF, passing cb as string???
-//  player.addEventListener('onStateChange', 'onStateChange')
-  
-}
-
-function play(item) {
-  if(!item)
-    item = {title: '', description: '', id: ''}
-  if(item instanceof crdt.Row)
-    item = item.toJSON()
-  console.log("PLAY", item)
-  j('#nowplaying')
-    .empty()
-    .append(
-      j('<a>').append(j('<h3>').text(item.title))
-      .attr('href', 'http://www.youtube.com/watch?feature=player_embedded&v='+item.id))
-    .append(j('<p>').text(item.description))
-
-   if(player && player.loadVideoById)
-    player.loadVideoById(item.id)
-  
-  current = item
-}
-
 
 function searchYT (query, cb) {
   var called  = false

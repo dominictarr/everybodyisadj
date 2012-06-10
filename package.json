@@ -11,7 +11,8 @@
   "main": "server.js",
   "dependencies": {
     "browser-stream": "~0.1.4",
-    "event-stream": "~2.0.0"
+    "event-stream": "~2.0.0",
+    "youtube-player": "0.0.2"
   },
   "devDependencies": {},
   "optionalDependencies": {},

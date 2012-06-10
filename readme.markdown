@@ -18,6 +18,10 @@ TODO
   * chat. --done
   * dashboards. 
 
+  * connention/reconnection widget
+
+  * refactor out youtube shit. (wrap with event emitter)
+
 then publish to internets.
 
 
