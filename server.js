@@ -13,7 +13,7 @@ var watch = require('watch')
 var store = require('./crdt-session-store')()
 var users = store.doc
 
-var kv = require('kv')(__dirname + '/data')
+var kv = require('kv')(process.env.HOME + '/.isadj/data')
 var sync2 = require('./sync')(kv)
 
 sync2(users, 'users')
