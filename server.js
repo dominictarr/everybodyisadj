@@ -105,7 +105,7 @@ fs.watch(__dirname+'/static', {}, function (event, cur) {
   group.all('reload', [])
 })
 
-var app = skates()
+var app = skates({cache: false})
   .use(connect.cookieParser('whatever'))
   .use(connect.session({
     secret: 'whatever', 
