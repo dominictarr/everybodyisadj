@@ -199,7 +199,7 @@ function load() {
 
   DOC = doc = new crdt.Doc()
 
-  var stream = sync(doc, loc.party + ':' + (loc.host || 'everybody'), ['proto', {
+  stream = sync(doc, loc.party + ':' + (loc.host || 'everybody'), ['proto', {
       party: loc.party
     , host: loc.host   || 'everbody' 
   }])
