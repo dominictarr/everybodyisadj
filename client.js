@@ -4,6 +4,8 @@ var bs = require('browser-stream')(skates)
 var crdt = require('crdt')
 var kv = KV = require('kv')('isdj')
 
+var j = $
+
 var YouTubePlayer = require('youtube-player')
 
 var seqWidget = require('./seq-widget')
@@ -178,11 +180,17 @@ rpcs.pipe(logErr(bs.createStream('rpc'))).pipe(rpcs)
 //XXX vvv
 var doc, playlist, party, stream, cStream, chat
 
+//just use one listener, even if load a new document.
+player.on('end', function () {
+  play(playlist.next(current))
+})
+
 function load() {
   var loc = getLocation()
   //this should be stream.destroy()
   if(doc) stream.destroy()
   if(chat) cStream.destroy()
+  if(playlist) playlist.removeAllListeners()
 
   var href = [window.location.origin, loc.host, loc.party].join('/')
 
@@ -214,10 +222,6 @@ function load() {
     if(current !== row.id) return
     play(playlist.next(row))
   })
-  player.on('end', function () {
-    play(playlist.next(current))
-  })
-
   chat = new crdt.Doc()
   var chatid = ['chat',loc.party,loc.host || 'everybody'].join(':')
   cStream = sync(chat, chatid, [chatid])
@@ -230,7 +234,6 @@ function load() {
 ///XXX ^^^
 
 //assign jquery to j because it's easier to type!
-var j = $
 //on document load.
 
 
