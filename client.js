@@ -275,6 +275,10 @@ function getLocation () {
 
 j(function () {
 
+  connection = require('./status')(skates)
+  j('#user').before(connection)
+
+
   if(window.location.pathname === '/')
     //or randomly go to playlist?
     history.pushState({}, '', '/everybody/playlist1') 
