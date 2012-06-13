@@ -36,12 +36,12 @@ module.exports = function (kv) {
     function read(key, ready) {
       kv.has(key, function (err) {
         if(err) return ready(err)
-        var ds = crdt.createStream(doc)
+        var ds = doc.createWriteStream()
         kv.get(key).on('end', ready).pipe(ds)
       })
     }
     function write(key) {
-      var source = crdt.createStream(doc)
+      var source = doc.createReadStream({end: false})
       source.pipe(kv.put(key))
       return source
     }
