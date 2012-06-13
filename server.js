@@ -100,7 +100,6 @@ group.all = function (method, args) {
 }
 
 fs.watch(__dirname+'/static', {}, function (event, cur) {
-  console.log("WATCH", event, cur)
   index = fs.readFileSync(__dirname+'/static/index.html')
   group.all('reload', [])
 })
@@ -120,7 +119,6 @@ var app = skates({cache: false})
   })
   .use(connect.static(__dirname+'/static'))
   .use(function (req, res, next) {
-    console.log('URL', JSON.stringify(req.url))
     if(/^\/\w+\/\w+\/?$/.test(req.url))
       res.end(index)
     else
@@ -173,16 +171,13 @@ function logErr(s) {
   
   return s
 }
-function sync(doc, stream) {
-  var ds = crdt.createStream(doc)
+function sync(doc, stream, id) {
+  var ds = crdt.createStream(doc, {id: id})
   ds
-    //.pipe(es.log('SEND' + stream._id)).
     .pipe(stream)
-    //.pipe(es.log('RECV' + stream._id))
     .pipe(ds)
 
   stream.on('error', function () {
-    console.log('DESTROY', stream._id)
     ds.destroy()
   })  
 }
@@ -204,13 +199,13 @@ streamRouter(app)
   .add(/^chat:/, function (stream) {
     sync(loadDoc(stream.name), stream)
   })
-  .add('whoami', function (stream) {
+  .add('whoami', function (stream, user) {
     /*
       oh, damn. the client needs to know which user it is.
       so it's gotta get that in some particular way...
       hmm, I think what I'll do is a script tag...
     */
-    sync(users, stream)
+    sync(users, stream, user.id)
   })
   .add('rpc', function (stream) {
     logErr(stream).pipe(group(rpc(expose, true))).pipe(stream)
