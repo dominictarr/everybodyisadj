@@ -12,6 +12,7 @@ function seqWidget( el, seq, opts) {
   var template = opts.template
   
   function update (r) { 
+    console.log('update', r.id, seq.indexOf(r))
     var li = $('#'+r.id)
     li = li.length ? li : $(template(r))
 
@@ -19,7 +20,11 @@ function seqWidget( el, seq, opts) {
     if(el.children().index(li) == i) return //already in place
 
     var next = seq.next(r)
-    if (next) li.insertBefore($('#'+next.id)) 
+    if (next) {
+      var nextEl = $('#'+next.id)
+      if(nextEl.length) li.insertBefore(nextEl)
+      else el.append(li) 
+    }
     else el.append(li) 
   }
 
@@ -41,6 +46,11 @@ function seqWidget( el, seq, opts) {
     if(~i && seq.indexOf(itemId) !== i)
       seq.before(itemId, ui.item.next().attr('id'))
   }
+
+  if(seq.length())
+    seq.each(update)
+
+  console.log('LOAD', seq.toJSON())
 
   opts.receive = change
   opts.update  = change

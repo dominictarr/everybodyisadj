@@ -197,31 +197,40 @@ function load() {
   j('#host').text(loc.host).attr('href', href)
   j('#party').text(loc.party).attr('href', href)
 
-  doc = new crdt.Doc()
+  DOC = doc = new crdt.Doc()
+
   var stream = sync(doc, loc.party + ':' + (loc.host || 'everybody'), ['proto', {
       party: loc.party
     , host: loc.host   || 'everbody' 
   }])
-  playlist = PLAYLIST = doc.createSeq('type', 'track')
-  party = PARTY = playlist.get('party')
-  loc.party = loc.party || 'playlist1'
 
-  var party = doc.get('party').on('update', function (){
-    var h = party.get('host'), p = party.get('party')
-  })
+   function ready () {
+    console.log('READY')
+    playlist = PLAYLIST = doc.createSeq('type', 'track')
+    seqWidget('#playlist', playlist, {
+      template: itemTemplate
+    })
+    current = null //this will play the first track that is added.
+    playlist.on('add', function (row) {
+      if(current) return
+      play(row.toJSON()) 
+    })
+    playlist.on('remove', function (row) {
+      if(current !== row.id) return
+      play(playlist.next(row))
+    })
 
-  seqWidget('#playlist', playlist, {
-    template: itemTemplate
-  })
-  current = null //this will play the first track that is added.
-  playlist.on('add', function (row) {
-    if(current) return
-    play(row.toJSON()) 
-  })
-  playlist.on('remove', function (row) {
-    if(current !== row.id) return
-    play(playlist.next(row))
-  })
+    play(playlist.first())
+ 
+    var party = PARTY = playlist.get('party')
+    loc.party = loc.party || 'playlist1'
+
+    require('./query')('#search', '#results', playlist)
+  }
+
+  if(doc.sync)
+    ready()
+  else doc.once('sync', ready)
   chat = new crdt.Doc()
   var chatid = ['chat',loc.party,loc.host || 'everybody'].join(':')
   cStream = sync(chat, chatid, [chatid])
@@ -333,7 +342,7 @@ j(function () {
     background: 'whitesmoke'
   })
 
-  require('./query')('#search', '#results', playlist)
+
 
 })
 
