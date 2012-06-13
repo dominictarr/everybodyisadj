@@ -2,6 +2,7 @@ skates = require('skates')()
 
 var bs = require('browser-stream')(skates)
 var crdt = require('crdt')
+var kv = require('kv')('isdj')
 
 var YouTubePlayer = require('youtube-player')
 
@@ -51,6 +52,7 @@ IDEA:
 
 window.player = new YouTubePlayer({id: 'ytplayer'})
 
+
 var current = null
 
 function play(item) {
@@ -58,7 +60,6 @@ function play(item) {
     item = {title: '', description: '', id: ''}
   if(item instanceof crdt.Row)
     item = item.toJSON()
-  console.log("PLAY", item)
   j('#nowplaying')
     .empty()
     .append(
@@ -123,29 +124,44 @@ function log(data) {
   return data
 }
 
-function sync(doc, args) {
+function sync(doc, name, args) {
+
+  function write () {
+    doc.createReadStream({end: false}) //track changes forever
+      .pipe(kv.put(name))   
+  }
+
+  kv.has(name, function (err) {
+    if(err) { //the doc is new
+      doc.sync = true
+      return write() 
+    }
+    var stream = kv.get(name)
+    stream.once('end', write)
+      .pipe(doc.createWriteStream())
+  })
+
   return (function _sync() {
-    console.log('SYNC DOC!!!')
     var closed = 0
-    var stream = log(crdt.createStream(doc))
+    var stream = doc.createStream()
       , bStream
+
     stream
     .pipe(
-      bStream = bs.createStream.apply(bs, args).on('error', function () {
-        console.log('STREAM DESTROYED', stream)
-        stream.destroy()
-      })
+      bStream = bs.createStream.apply(bs, args)
+        .on('error', function () {
+          stream.destroy()
+        })
         .on('close', function () {
           if(!closed++)
             process.nextTick(_sync)
-          console.log('closed', closed, bStream._id)
         })
     ).pipe(stream)
     return stream
   })()
 }
 
-sync(userDoc, ['whoami', {user_id: GLOBALS.user_id}])
+sync(userDoc, 'users', ['whoami', {user_id: GLOBALS.user_id}])
 
 rpcs.pipe(logErr(bs.createStream('rpc'))).pipe(rpcs)
 
@@ -166,7 +182,7 @@ function load() {
   j('#party').text(loc.party).attr('href', href)
 
   doc = new crdt.Doc()
-  var stream = sync(doc, ['proto', {
+  var stream = sync(doc, loc.party + ':' + (loc.host || 'everybody'), ['proto', {
       party: loc.party
     , host: loc.host   || 'everbody' 
   }])
@@ -175,7 +191,6 @@ function load() {
   loc.party = loc.party || 'playlist1'
 
   var party = doc.get('party').on('update', function (){
-    console.log('UPDATE', party.toJSON())
     var h = party.get('host'), p = party.get('party')
   })
 
@@ -189,7 +204,8 @@ function load() {
   })
 
   chat = new crdt.Doc()
-  cStream = sync(chat, [['chat',loc.party,loc.host || 'everybody'].join(':')])
+  var chatid = ['chat',loc.party,loc.host || 'everybody'].join(':')
+  cStream = sync(chat, chatid, [chatid])
 
   createChat('#chat', chat, user) 
 
@@ -202,50 +218,7 @@ function load() {
 var j = $
 //on document load.
 
-function searchYT (query, cb) {
-  var called  = false
-  var keyword = encodeURIComponent(query);
-  var yt_url  = 
-    'http://gdata.youtube.com/feeds/api/videos?q='+keyword+'&format=5&max-results=20&v=2&alt=jsonc'
 
-  function done (error, data) {
-    if(called) return
-    called = true
-    cb(error, data)
-  }
-  
-  j.ajax({
-    type: "GET"
-  , url: yt_url
-  , dataType:"jsonp"
-  , success: function(data) { done(null,  data) }
-  , error: function (_, __, error) { done(error, null) }
-  })
-
-}
-
-function restrictor(keys) {
-  return function (e) {
-    var r = {}
-    for (var i in keys) {
-      var k = keys[i]
-      r[k] = e[k]
-    }
-    return r
-  }
-}
-
-function itemTemplateSearch(item) {
-//  var desc = item.description
-//  var desc = desc.length > 100 ? desc.substring(0,100) + '...' : desc
-  var el = j('<div class="search track">').attr('id', 'search_'+item.id)
-    .append(
-      j('<a href=#><img class=thumbnail src=http://i.ytimg.com/vi/' + item.id + '/default.jpg></a>')
-        .click(function () { playlist.push(item); el.remove() })
-    )
-    .append('<strong>'+item.title+'</strong>')
-  return el
-}
 
 function link(inner, click) {
   var a = j('<a href=#>')
@@ -272,26 +245,6 @@ function itemTemplate(item) {
       .append(link('delete', function () { playlist.remove(item.id) }))
     )
 }
-
-var toAddToPage = []
-
-/*
-  add elements asyncronously,
-  because if you try to add too many elements
-  at once it makes the interface unresponsive
-*/
-
-function addSearchResults() {
-  var results = j('#results').empty()
-  function add() {
-    var item = toAddToPage.shift()
-    if(!item) return 
-    results.append(itemTemplateSearch(item))
-    setTimeout(add, 0)
-  }
-  add()
-}
-
 /*
   I've just avoided the urge to write a module that
   wraps pushState, and falls back to # but does not
@@ -303,8 +256,6 @@ function addSearchResults() {
 
 function getLocation () { 
   var path = window.location.pathname
-//  var hash = l.hash.substring(1).split('/')
-//  if(hash.length < 2)
   path = path.substring(1).split('/')
   return {
     host: path.shift(), party: path.shift()
@@ -316,10 +267,26 @@ j(function () {
   if(window.location.pathname === '/')
     //or randomly go to playlist?
     history.pushState({}, '', '/everybody/playlist1') 
+
   load()
-  /*seqWidget('#playlist', playlist, {
-    template: itemTemplate
-  })*/
+
+  function updateUser() {
+    var u = j('#user')
+      .html('<em>'+user.get('name')+'</em>')
+      .append(link('edit', function (e) {
+        u.empty().append(
+          inplace(user.get('name'), function (val) {
+            user.set({name: val})
+          })
+        )
+        return false
+      }))
+  }
+
+  user.on('changes', updateUser)
+  if(user.get('name'))
+    updateUser()
+
   function change () {
     var val = this.value.split(':')
     var p = val.pop()
@@ -344,51 +311,7 @@ j(function () {
     background: 'whitesmoke'
   })
 
-  function updateUser() {
-    var u = j('#user')
-      .html('<em>'+user.get('name')+'</em>')
-      .append(link('edit', function (e) {
-        u.empty().append(
-          inplace(user.get('name'), function (val) {
-            user.set({name: val})
-          })
-        )
-        return false
-      }))
-  }
+  require('./query')('#search', '#results', playlist)
 
-  user.on('changes', updateUser)
-  if(user.get('name'))
-    updateUser()
-
-  j('#search').focus()
-  var query = '', queued = false
-  j('#search').keyup(function () {
-    //don't search if the query hasn't changed.
-    //like if a alphanumeric key is pressed
-    if(this.value.trim() == query) return 
-    /*
-      don't search on every key up, incase they are typing fast.
-      just queue a search, in 200 ms. for example. or if they
-      slowing the response a little, gives smoother feel 
-    */
-    var self = this
-    if(queued) return
-    queued = true
-    setTimeout(function () {
-      queued = false
-      searchYT(query = self.value.trim(), function (err, data) {
-        returned = true
-        if(err)
-          return console.error(err)
-        var items = data.data.items.map(restrictor('id,uploader,title,description,rating'.split(',')))
-        items.forEach(function (e) {
-          toAddToPage.push(e)
-        })
-        addSearchResults()
-
-      })
-    }, 200)
-  })
 })
 
