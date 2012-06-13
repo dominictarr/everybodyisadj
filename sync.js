@@ -57,7 +57,7 @@ module.exports = function (kv) {
 
     function next() {
       turn = !turn
-      if(cs) cs.end()
+      if(cs) cs.destroy()
       cs = write(key + '_' + (turn ? 1 : 2))
     }
 
