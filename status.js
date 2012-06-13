@@ -8,7 +8,9 @@ module.exports = function (emitter) {
   var interval
   var el = j('<span id=status>')
     .append(connect = j('<a href=#>'))
+    .append('<br/>')
     .append(flow = j('<span>'))
+    .css({display: 'inline-block', width: '50px', fontSize: '10px', textAlign: 'right'})
 
   connect.click(function () {
     if(emitter.connected)
