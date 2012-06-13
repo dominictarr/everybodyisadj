@@ -2,7 +2,7 @@ skates = require('skates')()
 
 var bs = require('browser-stream')(skates)
 var crdt = require('crdt')
-var kv = require('kv')('isdj')
+var kv = KV = require('kv')('isdj')
 
 var YouTubePlayer = require('youtube-player')
 
@@ -16,6 +16,14 @@ skates.emit('auth', userId)
 skates.on('disconnect', function () {
   skates.emit('auth', userId)
 })
+
+PURGE = function () {
+  kv.list().forEach(function (key) {
+    kv.del(key, function () {
+      console.log('del:', key)
+    })
+  })  
+}
 /*
 IDEA:
 
