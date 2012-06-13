@@ -75,8 +75,8 @@ function play(item) {
       .attr('href', 'http://www.youtube.com/watch?feature=player_embedded&v='+item.id))
     .append(j('<p>').text(item.description))
 
-  player.play(item.id)
-  current = item
+  player.play(item.id || '')
+  current = item.id
 }
 
 
@@ -210,7 +210,10 @@ function load() {
     if(current) return
     play(row.toJSON()) 
   })
-
+  playlist.on('remove', function (row) {
+    if(current !== row.id) return
+    play(playlist.next(row))
+  })
   chat = new crdt.Doc()
   var chatid = ['chat',loc.party,loc.host || 'everybody'].join(':')
   cStream = sync(chat, chatid, [chatid])
