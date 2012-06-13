@@ -214,6 +214,10 @@ function load() {
     if(current !== row.id) return
     play(playlist.next(row))
   })
+  player.on('end', function () {
+    play(playlist.next(current))
+  })
+
   chat = new crdt.Doc()
   var chatid = ['chat',loc.party,loc.host || 'everybody'].join(':')
   cStream = sync(chat, chatid, [chatid])
